@@ -1,4 +1,4 @@
-#  sentiment Tracker (Python)
+#  Sentiment Tracker (Python)
 
 Vibe Tracker is a modern mood and activity tracking application.  
 This repository contains the project files and instructions for setting up and running the app.
