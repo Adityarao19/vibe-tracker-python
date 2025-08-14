@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, TrendingUp, BarChart3, PieChart } from "lucide-react";
+import { analyzeSentiment, getConfidenceLevel, getAnalysisExplanation } from "@/utils/sentimentAnalysis";
 import { toast } from "sonner";
 import { SentimentCharts } from "./SentimentCharts";
 import { SentimentStats } from "./SentimentStats";
@@ -13,34 +14,15 @@ interface SentimentResult {
   sentiment: 'positive' | 'negative' | 'neutral';
   confidence: number;
   timestamp: Date;
+  scores: { positive: number; negative: number; neutral: number };
+  wordCount: number;
+  explanation: string;
 }
 
 export const SentimentAnalysis = () => {
   const [tweetText, setTweetText] = useState("");
   const [results, setResults] = useState<SentimentResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // Simple sentiment analysis function (in a real app, this would be an API call)
-  const analyzeSentiment = (text: string): { sentiment: 'positive' | 'negative' | 'neutral'; confidence: number } => {
-    const positiveWords = ['good', 'great', 'awesome', 'amazing', 'love', 'excellent', 'fantastic', 'wonderful', 'best', 'happy', 'excited', 'perfect'];
-    const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'worst', 'horrible', 'sad', 'angry', 'disappointed', 'frustrating', 'annoying'];
-    
-    const words = text.toLowerCase().split(/\s+/);
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    words.forEach(word => {
-      if (positiveWords.some(pw => word.includes(pw))) positiveScore++;
-      if (negativeWords.some(nw => word.includes(nw))) negativeScore++;
-    });
-    
-    const totalScore = positiveScore - negativeScore;
-    const confidence = Math.min(0.9, Math.max(0.6, Math.abs(totalScore) * 0.2 + 0.6));
-    
-    if (totalScore > 0) return { sentiment: 'positive', confidence };
-    if (totalScore < 0) return { sentiment: 'negative', confidence };
-    return { sentiment: 'neutral', confidence: 0.7 };
-  };
 
   const handleAnalyze = async () => {
     if (!tweetText.trim()) {
@@ -50,22 +32,28 @@ export const SentimentAnalysis = () => {
 
     setIsAnalyzing(true);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Simulate API delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     const analysis = analyzeSentiment(tweetText);
+    const explanation = getAnalysisExplanation(tweetText);
+    
     const newResult: SentimentResult = {
       text: tweetText,
       sentiment: analysis.sentiment,
       confidence: analysis.confidence,
-      timestamp: new Date()
+      timestamp: new Date(),
+      scores: analysis.scores,
+      wordCount: analysis.wordCount,
+      explanation
     };
     
-    setResults(prev => [newResult, ...prev].slice(0, 10)); // Keep last 10 results
+    setResults(prev => [newResult, ...prev].slice(0, 20)); // Keep last 20 results
     setTweetText("");
     setIsAnalyzing(false);
     
-    toast.success(`Analysis complete: ${analysis.sentiment} sentiment detected!`);
+    const confidenceLevel = getConfidenceLevel(analysis.confidence);
+    toast.success(`Analysis complete: ${analysis.sentiment} sentiment (${confidenceLevel} confidence)!`);
   };
 
   const getSentimentColor = (sentiment: string) => {
@@ -159,20 +147,25 @@ export const SentimentAnalysis = () => {
             <CardContent>
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 {results.map((result, index) => (
-                  <div key={index} className="p-4 rounded-lg border bg-muted/50 space-y-3">
+                  <div key={index} className="p-4 rounded-lg border bg-muted/50 space-y-3 animate-fade-in">
                     <div className="flex items-start justify-between gap-4">
-                      <p className="text-sm flex-1">{result.text}</p>
+                      <p className="text-sm flex-1 line-clamp-3">{result.text}</p>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <Badge className={getSentimentColor(result.sentiment)}>
                           {getSentimentIcon(result.sentiment)} {result.sentiment}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground font-medium">
                           {Math.round(result.confidence * 100)}%
                         </span>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {result.timestamp.toLocaleString()}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{result.explanation}</span>
+                      <div className="flex items-center gap-4">
+                        <span>{result.wordCount} words</span>
+                        <span>{getConfidenceLevel(result.confidence)} confidence</span>
+                        <span>{result.timestamp.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -196,12 +189,30 @@ export const SentimentAnalysis = () => {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
-                  { text: "I absolutely love this new AI technology! It's revolutionary and will change everything for the better.", sentiment: "positive" },
-                  { text: "This update is terrible. Nothing works anymore and I'm really frustrated with the whole experience.", sentiment: "negative" },
-                  { text: "The weather today is okay. Nothing special happening, just a regular day at the office.", sentiment: "neutral" },
-                  { text: "Amazing breakthrough in renewable energy! This could save our planet and create millions of jobs.", sentiment: "positive" },
-                  { text: "Disappointed with the customer service. Waited 2 hours and still no resolution to my problem.", sentiment: "negative" },
-                  { text: "Just finished reading an article about quantum computing. Interesting technical details about qubits.", sentiment: "neutral" }
+                  { 
+                    text: "I absolutely love this new AI technology! It's revolutionary and will change everything for the better. Amazing breakthrough!", 
+                    sentiment: "positive" 
+                  },
+                  { 
+                    text: "This update is terrible and disappointing. Nothing works anymore and I'm really frustrated with the whole experience. Worst update ever!", 
+                    sentiment: "negative" 
+                  },
+                  { 
+                    text: "The weather today is okay. Nothing special happening, just a regular day at the office. Standard procedures.", 
+                    sentiment: "neutral" 
+                  },
+                  { 
+                    text: "Not bad, but could be better. The interface is somewhat confusing and needs improvement.", 
+                    sentiment: "negative" 
+                  },
+                  { 
+                    text: "Extremely disappointed with the customer service. Waited 2 hours and still no resolution to my critical problem.", 
+                    sentiment: "negative" 
+                  },
+                  { 
+                    text: "Just finished reading an article about quantum computing. Interesting technical details about qubits and superposition.", 
+                    sentiment: "neutral" 
+                  }
                 ].map((sample, index) => (
                   <Card 
                     key={index} 

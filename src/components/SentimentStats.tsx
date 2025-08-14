@@ -6,6 +6,9 @@ interface SentimentResult {
   sentiment: 'positive' | 'negative' | 'neutral';
   confidence: number;
   timestamp: Date;
+  scores: { positive: number; negative: number; neutral: number };
+  wordCount: number;
+  explanation: string;
 }
 
 interface SentimentStatsProps {
